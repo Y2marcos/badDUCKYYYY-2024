@@ -1,79 +1,381 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text to Binary Converter</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 50px;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        textarea {
-            width: 100%;
-            height: 100px;
-            margin-bottom: 20px;
-            padding: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .hidden {
-            display: none;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Text ↔ Binary Converter (All-in-one)</title>
+  <style>
+    body { font-family: Inter, Arial, sans-serif; margin: 32px; background:#f5f7fb; color:#0f1724; }
+    .card { max-width:1000px; margin:0 auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 6px 18px rgba(3,18,26,.06); }
+    textarea { width:100%; min-height:160px; padding:12px; border-radius:8px; border:1px solid #e6eef7; resize:vertical; box-sizing:border-box; font-family:monospace; }
+    .row { display:flex; gap:12px; margin-bottom:12px; align-items:center; flex-wrap:wrap; }
+    select,input[type=text],button { padding:8px 10px; border-radius:8px; border:1px solid #dbeaf7; font-size:14px; }
+    button.primary { background:#007bff; color:#fff; border:none; cursor:pointer; }
+    button.ghost { background:transparent; color:#334155; border:1px solid #cfdff1; cursor:pointer; }
+    .meta { color:#475569; font-size:13px; margin-top:8px; }
+    .preview { white-space:pre-wrap; font-family:monospace; background:#0b1220; color:#e6fffa; padding:12px; border-radius:8px; max-height:320px; overflow:auto; }
+    label{ font-weight:600; display:block; margin-bottom:6px; font-size:13px; color:#0f1724; }
+    .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .small { font-size:13px; color:#475569; }
+    .flexcol { display:flex; flex-direction:column; gap:8px; }
+    .switch { display:flex; gap:8px; align-items:center; }
+  </style>
 </head>
 <body>
+  <div class="card" role="main">
+    <h1>Text ↔ Binary Converter (All-in-one)</h1>
+    <p class="small">Single-file app. Produces raw .bin bytes or textual bit representations with encoding, grouping, endianness, BOM, streaming and preview options.</p>
 
-<div class="container">
-    <h1>Text to Binary File Converter</h1>
-    <textarea id="textInput" placeholder="Enter your text here..."></textarea><br>
-    <button onclick="prepareBinaryFile()">Prepare File</button>
+    <label for="textInput">Input text</label>
+    <textarea id="textInput" placeholder="Paste or type text here..."></textarea>
 
-    <div id="fileReady" class="hidden">
-        <p>Your file <strong>script.bin</strong> is ready!</p>
-        <button id="downloadButton" onclick="downloadBinaryFile()">Download File</button>
+    <div class="row">
+      <div style="flex:1; min-width:200px;">
+        <label for="filename">Filename</label>
+        <input id="filename" type="text" value="script.bin" />
+      </div>
+
+      <div style="min-width:220px;">
+        <label for="outputType">Output type</label>
+        <select id="outputType">
+          <option value="raw">Raw binary file (.bin) — encoded bytes</option>
+          <option value="text">Binary text (.txt) — "0" and "1" characters</option>
+        </select>
+      </div>
+
+      <div style="min-width:200px;">
+        <label for="encoding">Encoding</label>
+        <select id="encoding">
+          <option value="utf-8">UTF-8</option>
+          <option value="utf-16le">UTF-16 (LE)</option>
+          <option value="utf-16be">UTF-16 (BE)</option>
+          <option value="ascii">ASCII (bytes &lt;128)</option>
+        </select>
+      </div>
     </div>
-</div>
+
+    <div class="row">
+      <div style="min-width:280px;">
+        <label for="bitFormat">Binary text formatting</label>
+        <select id="bitFormat">
+          <option value="bytes">Space-separated bytes (8)</option>
+          <option value="nospace">Continuous bits (no spaces)</option>
+          <option value="group8">Grouped by 8 bits (space)</option>
+          <option value="group16">Grouped by 16 bits (space)</option>
+          <option value="group32">Grouped by 32 bits (space)</option>
+        </select>
+      </div>
+
+      <div style="min-width:160px;">
+        <label for="endian">Endianness (for grouping)</label>
+        <select id="endian">
+          <option value="be">Big-endian (per byte, natural)</option>
+          <option value="le">Little-endian (reverse byte order inside groups)</option>
+        </select>
+      </div>
+
+      <div style="min-width:220px;">
+        <label for="streamingMode">Large input handling</label>
+        <select id="streamingMode">
+          <option value="auto">Auto (stream if &gt; 1MB)</option>
+          <option value="always">Always stream</option>
+          <option value="never">Never stream (full in-memory)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="switch" style="min-width:240px;">
+        <input id="includeBom" type="checkbox" />
+        <label for="includeBom" style="font-weight:600; margin:0;">Include BOM (for UTF-16)</label>
+      </div>
+
+      <div style="min-width:240px;">
+        <label for="previewLimit">Preview limit (chars)</label>
+        <input id="previewLimit" type="text" value="1024" />
+      </div>
+
+      <div style="min-width:200px;">
+        <label for="chunkSizeKB">Chunk size (KB) for streaming</label>
+        <input id="chunkSizeKB" type="text" value="64" />
+      </div>
+    </div>
+
+    <div class="controls" style="margin-top:6px;">
+      <button id="prepareBtn" class="primary" title="Prepare the file (Ctrl/Cmd+Enter)">Prepare File</button>
+      <button id="downloadBtn" class="ghost" disabled>Download</button>
+      <button id="previewBtn" class="ghost">Show Preview</button>
+      <button id="clearBtn" class="ghost">Clear</button>
+    </div>
+
+    <div id="meta" class="meta" aria-live="polite"></div>
+
+    <details id="previewDetails" class="hidden" style="margin-top:10px;">
+      <summary style="cursor:pointer; font-weight:600;">Binary preview</summary>
+      <div id="preview" class="preview" role="region" aria-live="polite"></div>
+    </details>
+  </div>
 
 <script>
-    let blob;  // Store binary data here
+/*
+  All-in-one client-side app
+  - Features: raw bytes or textual bits, encodings (utf-8 / utf-16le / utf-16be / ascii),
+              include BOM for UTF-16, bit formatting, endianness, streaming/chunked processing,
+              filename control, preview, object URL management, keyboard shortcut.
+*/
 
-    function prepareBinaryFile() {
-        // Get the text input
-        const text = document.getElementById("textInput").value;
+const el = id => document.getElementById(id);
 
-        // Convert the text to a Uint8Array (binary format)
-        const binaryData = new TextEncoder().encode(text);
+const textInput = el('textInput');
+const prepareBtn = el('prepareBtn');
+const downloadBtn = el('downloadBtn');
+const previewBtn = el('previewBtn');
+const clearBtn = el('clearBtn');
+const filenameInput = el('filename');
+const outputType = el('outputType');
+const encodingSel = el('encoding');
+const bitFormat = el('bitFormat');
+const endianSel = el('endian');
+const streamingMode = el('streamingMode');
+const includeBom = el('includeBom');
+const previewLimit = el('previewLimit');
+const chunkSizeKB = el('chunkSizeKB');
+const meta = el('meta');
+const preview = el('preview');
+const previewDetails = el('previewDetails');
 
-        // Create a Blob from the binary data
-        blob = new Blob([binaryData], { type: "application/octet-stream" });
+let currentBlob = null;
+let currentUrl = null;
+let currentFilename = '';
 
-        // Show the file is ready message
-        document.getElementById("fileReady").classList.remove("hidden");
+function revokeIfAny(){
+  if (currentUrl) {
+    URL.revokeObjectURL(currentUrl);
+    currentUrl = null;
+  }
+  currentBlob = null;
+  downloadBtn.disabled = true;
+  meta.textContent = '';
+}
+
+function detectShouldStream(sizeBytes){
+  const mode = streamingMode.value;
+  if (mode === 'always') return true;
+  if (mode === 'never') return false;
+  return sizeBytes > 1_000_000;
+}
+
+// Encode text to bytes in-memory (synchronous) for various encodings
+function encodeTextToBytesInMemory(text, encoding, includeBomFlag) {
+  encoding = (encoding || 'utf-8').toLowerCase();
+  if (encoding === 'utf-8') {
+    const enc = new TextEncoder();
+    return enc.encode(text);
+  }
+  if (encoding === 'ascii') {
+    const out = new Uint8Array(text.length);
+    for (let i=0;i<text.length;i++) out[i] = text.charCodeAt(i) & 0x7F;
+    return out;
+  }
+  if (encoding === 'utf-16le' || encoding === 'utf-16be') {
+    const little = encoding === 'utf-16le';
+    // Estimate length, build an array then trim
+    const out = new Uint8Array(text.length * 4 + 2);
+    let off = 0;
+    if (includeBomFlag) {
+      if (little) { out[off++] = 0xFF; out[off++] = 0xFE; }
+      else { out[off++] = 0xFE; out[off++] = 0xFF; }
+    }
+    for (let i = 0; i < text.length; i++) {
+      let code = text.charCodeAt(i);
+      // Handle surrogate pairs: if high surrogate and next is low surrogate, write both properly
+      if (0xD800 <= code && code <= 0xDBFF && i + 1 < text.length) {
+        const next = text.charCodeAt(i+1);
+        if (0xDC00 <= next && next <= 0xDFFF) {
+          // Write high then low as two 16-bit code units
+          const high = code, low = next;
+          if (little) {
+            out[off++] = high & 0xFF; out[off++] = (high >> 8) & 0xFF;
+            out[off++] = low & 0xFF; out[off++] = (low >> 8) & 0xFF;
+          } else {
+            out[off++] = (high >> 8) & 0xFF; out[off++] = high & 0xFF;
+            out[off++] = (low >> 8) & 0xFF; out[off++] = low & 0xFF;
+          }
+          i++; continue;
+        }
+      }
+      if (little) {
+        out[off++] = code & 0xFF; out[off++] = (code >> 8) & 0xFF;
+      } else {
+        out[off++] = (code >> 8) & 0xFF; out[off++] = code & 0xFF;
+      }
+    }
+    return out.subarray(0, off);
+  }
+  // fallback to UTF-8
+  return new TextEncoder().encode(text);
+}
+
+// Convert Uint8Array bytes to bit string according to format and endianness
+function bytesToBitString(bytes, format, endian) {
+  if (!bytes || bytes.length === 0) return '';
+  if (format === 'nospace') {
+    return Array.from(bytes).map(b => b.toString(2).padStart(8,'0')).join('');
+  }
+  if (format === 'bytes' || format === 'group8') {
+    return Array.from(bytes).map(b => b.toString(2).padStart(8,'0')).join(' ');
+  }
+  const groupSize = format === 'group16' ? 2 : 4;
+  const groups = [];
+  for (let i=0;i<bytes.length;i+=groupSize) {
+    const slice = bytes.slice(i, i+groupSize);
+    let arr = Array.from(slice);
+    if (endian === 'le') arr = arr.reverse();
+    groups.push(arr.map(b => b.toString(2).padStart(8,'0')).join(''));
+  }
+  return groups.join(' ');
+}
+
+// Streamed processing: for large inputs, chunk the input string, encode each chunk, and collect parts (to limit peak memory)
+async function prepareFile() {
+  revokeIfAny();
+
+  const text = textInput.value || '';
+  if (!text) { alert('Please enter some text'); return; }
+
+  const encoding = encodingSel.value;
+  const outType = outputType.value;
+  currentFilename = filenameInput.value.trim() || (outType === 'text' ? 'binary.txt' : 'script.bin');
+
+  // Estimate size for streaming decision
+  let estimatedSize = text.length;
+  if (encoding === 'utf-8') {
+    estimatedSize = new TextEncoder().encode(text).length;
+  } else if (encoding === 'ascii') {
+    estimatedSize = text.length;
+  } else estimatedSize = text.length * 2;
+
+  const shouldStream = detectShouldStream(estimatedSize);
+  const chunkChars = Math.max(1024, (parseInt(chunkSizeKB.value,10) || 64) * 1024); // characters per chunk
+  const includeBomFlag = includeBom.checked && (encoding === 'utf-16le' || encoding === 'utf-16be');
+
+  try {
+    if (outType === 'raw') {
+      // Raw bytes output
+      if (shouldStream && encoding === 'utf-8') {
+        // Stream by chunks (UTF-8 encoder per chunk)
+        const parts = [];
+        let total = 0;
+        for (let i=0;i<text.length;i+=chunkChars) {
+          const chunk = text.slice(i, i+chunkChars);
+          const bytes = new TextEncoder().encode(chunk);
+          parts.push(bytes);
+          total += bytes.length;
+          // allow event loop to breathe on very large inputs
+          await new Promise(r => setTimeout(r,0));
+        }
+        // If includeBomFlag for UTF-16 not relevant here; for raw+UTF-8 BOM usually unused
+        currentBlob = new Blob(parts, { type: 'application/octet-stream' });
+        meta.textContent = `Prepared "${currentFilename}" as raw bytes (streamed, ~${currentBlob.size} bytes).`;
+      } else {
+        // Encode full text in memory for chosen encoding
+        const bytes = encodeTextToBytesInMemory(text, encoding, includeBomFlag);
+        currentBlob = new Blob([bytes], { type: 'application/octet-stream' });
+        meta.textContent = `Prepared "${currentFilename}" as raw bytes (${bytes.length} bytes, encoding: ${encoding}${includeBomFlag ? ', BOM included' : ''}).`;
+      }
+    } else {
+      // Textual bits output
+      const format = bitFormat.value;
+      const endian = endianSel.value;
+      const parts = [];
+      if (shouldStream) {
+        // Stream: chunk text -> encode chunk -> convert to bits -> push to parts
+        let totalBytes = 0;
+        let firstPreview = true;
+        for (let i=0;i<text.length;i+=chunkChars) {
+          const chunk = text.slice(i, i+chunkChars);
+          const bytes = encodeTextToBytesInMemory(chunk, encoding, false); // do not add BOM in middle
+          totalBytes += bytes.length;
+          const bits = bytesToBitString(bytes, format, endian);
+          parts.push(bits);
+          if (firstPreview) {
+            preview.textContent = bits.slice(0, parseInt(previewLimit.value,10) || 1024);
+            previewDetails.open = true;
+            firstPreview = false;
+          }
+          await new Promise(r => setTimeout(r,0));
+        }
+        // Add BOM at start if requested (for textual representation, user probably expects BOM bytes represented if requested)
+        if (includeBomFlag) {
+          const bomBytes = encodeTextToBytesInMemory('\uFEFF', encoding, true); // this returns with BOM encoded for UTF-16 with includeBomFlag true
+          const bomBits = bytesToBitString(bomBytes, format, endian);
+          parts.unshift(bomBits + (format === 'nospace' ? '' : ' '));
+        }
+        currentBlob = new Blob(parts, { type: 'text/plain;charset=utf-8' });
+        meta.textContent = `Prepared "${currentFilename}" as textual bits (streamed, ~${currentBlob.size} characters, encoding: ${encoding}).`;
+      } else {
+        // Non-stream: in-memory conversion
+        const bytes = encodeTextToBytesInMemory(text, encoding, includeBomFlag);
+        const bits = bytesToBitString(bytes, format, endian);
+        currentBlob = new Blob([bits], { type: 'text/plain;charset=utf-8' });
+        const limit = parseInt(previewLimit.value,10) || 1024;
+        preview.textContent = bits.slice(0, limit) + (bits.length > limit ? '\n\n...preview truncated...' : '');
+        previewDetails.open = true;
+        meta.textContent = `Prepared "${currentFilename}" as textual bits (${bytes.length} bytes encoded, ${bits.length} characters).`;
+      }
     }
 
-    function downloadBinaryFile() {
-        // Create a link to download the file
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "script.bin";  // Name of the binary file
+    // finalize
+    currentUrl = URL.createObjectURL(currentBlob);
+    downloadBtn.disabled = false;
+    downloadBtn.onclick = triggerDownload;
+  } catch (err) {
+    console.error(err);
+    alert('Error while preparing file: ' + (err && err.message || err));
+  }
+}
 
-        // Automatically trigger the download
-        link.click();
-    }
+function triggerDownload() {
+  if (!currentBlob || !currentUrl) return;
+  const a = document.createElement('a');
+  a.href = currentUrl;
+  a.download = currentFilename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // keep URL till next prepare/clear; revoke on clear/unload
+}
+
+prepareBtn.addEventListener('click', prepareFile);
+downloadBtn.addEventListener('click', triggerDownload);
+previewBtn.addEventListener('click', () => {
+  previewDetails.classList.remove('hidden');
+  previewDetails.open = true;
+});
+clearBtn.addEventListener('click', () => {
+  if (!confirm('Clear input and prepared file?')) return;
+  textInput.value = '';
+  filenameInput.value = 'script.bin';
+  outputType.value = 'raw';
+  encodingSel.value = 'utf-8';
+  bitFormat.value = 'bytes';
+  endianSel.value = 'be';
+  streamingMode.value = 'auto';
+  includeBom.checked = false;
+  preview.textContent = '';
+  previewDetails.open = false;
+  revokeIfAny();
+});
+
+textInput.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault(); prepareFile();
+  }
+});
+
+// Clean up object URL on unload
+window.addEventListener('beforeunload', () => { if (currentUrl) URL.revokeObjectURL(currentUrl); });
+
 </script>
-
 </body>
 </html>
